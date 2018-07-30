@@ -1,5 +1,5 @@
 # PowerShell
-This is a collection of PowerShell modules and scripts. 
+A collection cmdlets related to Okta user and application management. 
 
 ## Prerequisites
 
