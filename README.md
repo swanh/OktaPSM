@@ -92,22 +92,22 @@ REMARKS
 
 To deactivate a single user in Okta:
 ```
-Deactivate-OktaUser -UserEmail testany.testerson@cruisedev.net
+Deactivate-OktaUser -UserEmail testany.testerson@acme.com
 ```
 
 To deactivate multiple users in Okta:
 ```
-@('test_user001@getcruise.com','test_user002@getcruise.com','test_user002@getcruise.com') | ForEach-Object {Deactivate-OktaUser -UserEmail $_}
+@('test_user001@acme.com','test_user002@acme.com','test_user002@acme.com') | ForEach-Object {Deactivate-OktaUser -UserEmail $_}
 ```
 
 To retrieve a quick count of application sync states from Okta to a particular application:
 ```
-Get-OktaAppUser -ApplicationID 0oaskfkehqb39kqyE1t6 | Group-Object syncState
+Get-OktaAppUser -ApplicationID 0oaskfkehqb3dsadyE1t6 | Group-Object syncState
 ```
 
 To retrieve a list of application assignment failures for a particular application:
 ```
-Get-OktaAppUser -ApplicationID 0oaskfkehqbdsa11t6 | Where-Object {$_.syncState -eq 'ERROR'}
+Get-OktaAppUser -ApplicationID 0oaskfrhqbdsa11t6 | Where-Object {$_.syncState -eq 'ERROR'}
 ```
 
 To retrieve a list of active users who have not logged on for 3 months:
@@ -115,8 +115,8 @@ To retrieve a list of active users who have not logged on for 3 months:
 Get-OktaUser -All | ? {$_.lastLogin -lt (Get-Date (Get-Date).AddDays(-90) -Format 'o')}
 ```
 
-To retrieve a list of active GM users with access to Confluence:
+To retrieve a list of active ACME users with access to Confluence:
 ```
-(Get-OktaAppUser -ApplicationID 0oa2zan7o0bMgnPyW1t7).profile | ? {$_.email -like "*gm.com"}
+(Get-OktaAppUser -ApplicationID 0oa2zan7odsadnPyW1t7).profile | ? {$_.email -like "*acme.com"}
 ```
 
