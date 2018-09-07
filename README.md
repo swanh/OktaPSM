@@ -10,7 +10,7 @@ A collection cmdlets related to Okta user and application management.
 
 ## Importing the Modules
 
-After you've downloaded the desired module folder, copy it to your module directory.
+After you've downloaded the module folder, copy it to your module directory.
 
 The default system module path for Linux/Mac is:
 * /usr/local/microsoft/powershell/6.0.2/modules
@@ -30,6 +30,13 @@ Import-Module NAME_OF_MODULE
 
 Example:
 Import-Module Okta
+```
+
+You'll also want to update the `$OKTA_BASE_URL` variable to point to your Okta environment.
+
+```
+#SET OKTA URL
+$OKTA_BASE_URL = "PUT BASE URL HERE"
 ```
 
 To get a list of commands within a module:
