@@ -4,9 +4,12 @@
 .LINK
     Okta Management API Documentation: https://developer.okta.com/docs/api/resources/apps
 .NOTES  
-    Author     : Swan Htet - swan.htet@getcruise.com  
+    Author     : Swan Htet - sw@nhtet.net 
     Requires   : PowerShell 
 #>
+
+#SET OKTA URL
+$OKTA_BASE_URL = "PUT BASE URL HERE"
 
 #Prompt user to enter Okta API key if not already set
 
@@ -46,7 +49,7 @@ function Get-OktaUser {
     
     #If All switch selected, return all Okta users
     if ($All) {
-        $uri_all = 'https://cruise.okta.com/api/v1/users'
+        $uri_all = "$OKTA_BASE_URL/api/v1/users"
         $ALL_USERS = (Invoke-WebRequest -Uri $uri_all -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
         $next = (($ALL_USERS.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
         #Clean the content of the first API call, add users to object 
@@ -65,7 +68,7 @@ function Get-OktaUser {
 
     if($Filter){
 
-    $uri_filter =  'https://cruise.okta.com/api/v1/users?filter=' + $Filter
+    $uri_filter =  "$OKTA_BASE_URL/api/v1/users?filter=" + $Filter
 
     $FILTER_USERS = (Invoke-WebRequest -Uri $uri_filter -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
     $next = (($FILTER_USERS.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
@@ -85,7 +88,7 @@ function Get-OktaUser {
 
     #Otherwise, return user specified in UserEmail parameter
     else {
-        $uri_one = 'https://cruise.okta.com/api/v1/users/' + $UserEmail
+        $uri_one = "$OKTA_BASE_URL/api/v1/users/" + $UserEmail
         $ONE_USER = (Invoke-WebRequest -Uri $uri_one -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
         $ONE_USER.Content | ConvertFrom-Json
     }
@@ -108,7 +111,7 @@ function Get-OktaGroup {
     if($All){
     
     #First API call
-    $uri_all = 'https://cruise.okta.com/api/v1/groups'
+    $uri_all = "$OKTA_BASE_URL/api/v1/groups"
     $ALL_GROUPS = (Invoke-WebRequest -Uri $uri_all -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
     $next = (($ALL_GROUPS.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
 
@@ -131,7 +134,7 @@ function Get-OktaGroup {
     #grab group by name provided
     else {
         $groupName_clean = $groupName -replace " ","%20"
-        $uri_one = "https://cruise.okta.com/api/v1/groups?q=$groupName_clean"
+        $uri_one = "$OKTA_BASE_URL/api/v1/groups?q=$groupName_clean"
         $ONE_GROUP = (Invoke-WebRequest -Uri $uri_one -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
         ($ONE_GROUP.Content | ConvertFrom-Json)[0]
         }
@@ -151,7 +154,7 @@ function Get-OktaGroupMembers {
 
     #Query Okta to grab the group ID, then use GroupID to construct new URI. GET to print out all users in the group
     $groupID = (Get-OktaGroup -groupName $groupName).id
-    $uri_grp_members = 'https://cruise.okta.com/api/v1/groups/' + $groupID + "/users"
+    $uri_grp_members = "$OKTA_BASE_URL/api/v1/groups/" + $groupID + "/users"
     $GROUP_MEMBERS = (Invoke-WebRequest -Uri $uri_grp_members -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
     $next = (($GROUP_MEMBERS.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
     #Clean the content of the first API call, add users to object 
@@ -183,7 +186,7 @@ function Add-OktaUserToGroup {
     #Construct URL, find userID and groupID from input
     $groupID = (Get-OktaGroup -groupName $groupName).id
     $userID = (Get-OktaUser -UserEmail $userEmail).id
-    $uri_grp_members_add = "https://cruise.okta.com/api/v1/groups/$groupID/users/$userID"
+    $uri_grp_members_add = "$OKTA_BASE_URL/api/v1/groups/$groupID/users/$userID"
 
     #Send HTTP POST to add user to group
     (Invoke-WebRequest -Uri $uri_grp_members_add -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Put)
@@ -203,7 +206,7 @@ function Remove-OktaUserFromGroup {
     #Construct URL, find userID and groupID from input
     $groupID = (Get-OktaGroup -groupName $groupName).id
     $userID = (Get-OktaUser -UserEmail $userEmail).id
-    $uri_grp_members_kill = "https://cruise.okta.com/api/v1/groups/$groupID/users/$userID"
+    $uri_grp_members_kill = "$OKTA_BASE_URL/api/v1/groups/$groupID/users/$userID"
 
     #Send HTTP POST to remove user from group
     (Invoke-WebRequest -Uri $uri_grp_members_kill -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method DELETE)
@@ -223,7 +226,7 @@ function Add-OktaGroup {
     Set-OKTAApiKey
 
     #Content URL and body to POST
-    $uri_add_group = 'https://cruise.okta.com/api/v1/groups'
+    $uri_add_group = "$OKTA_BASE_URL/api/v1/groups"
     $body = (ConvertTo-Json -InputObject @{ profile = @{ 'name' = $Name; 'description' = $description } })
 
     #Send HTTP POST to add user
@@ -285,7 +288,7 @@ function Set-OktaUser {
     Write-Verbose $body_new
     
     #URI
-    $uri_update_user = 'https://cruise.okta.com/api/v1/users/' + $userID
+    $uri_update_user = "$OKTA_BASE_URL/api/v1/users/" + $userID
 
     #Update Okta user profile
     Invoke-WebRequest -Uri $uri_update_user -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method POST -Body $body_new
@@ -373,7 +376,7 @@ function Add-OktaUser {
     Write-Verbose $body_new
     
     #Content URL and body to POST
-    $uri_add_user = 'https://cruise.okta.com/api/v1/users?activate=false'
+    $uri_add_user = "$OKTA_BASE_URL/api/v1/users?activate=false"
 
     #Send HTTP POST to add user
     Invoke-WebRequest -Uri $uri_add_user -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method POST -Body $body_new
@@ -391,7 +394,7 @@ function Get-OktaApp {
     Set-OKTAApiKey
 
     #First API call
-    $uri_all = 'https://cruise.okta.com/api/v1/apps'
+    $uri_all = "$OKTA_BASE_URL/api/v1/apps"
     $ALL_APPS = (Invoke-WebRequest -Uri $uri_all -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
     $next = (($ALL_APPS.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
 
@@ -465,7 +468,7 @@ function Get-OktaGroupApplications {
     if(!$IncludeInactive){
 
     $groupID = Get-OktaGroup -GroupName $GroupName
-    $uri_group_apps = "https://cruise.okta.com/api/v1/groups/" + $groupID.id + "/apps"
+    $uri_group_apps = "$OKTA_BASE_URL/api/v1/groups/" + $groupID.id + "/apps"
 
     $GROUP_APPS = (Invoke-WebRequest -Uri $uri_group_apps -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
        $GROUP_APPS_CLEAN = $GROUP_APPS.Content | ConvertFrom-Json
@@ -475,7 +478,7 @@ function Get-OktaGroupApplications {
 
     elseif($IncludeInactive){
     $groupID = Get-OktaGroup -GroupName $GroupName
-    $uri_group_apps = "https://cruise.okta.com/api/v1/groups/" + $groupID.id + "/apps"
+    $uri_group_apps = "$OKTA_BASE_URL/api/v1/groups/" + $groupID.id + "/apps"
     $GROUP_APPS = (Invoke-WebRequest -Uri $uri_group_apps -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
     $GROUP_APPS_CLEAN = $GROUP_APPS.Content | ConvertFrom-Json
 
@@ -491,7 +494,7 @@ function Get-OktaAppUser {
          
     )
     
-    $uri = 'https://cruise.okta.com/api/v1/apps/' +$ApplicationID + "/users"
+    $uri = "$OKTA_BASE_URL/api/v1/apps/" +$ApplicationID + "/users"
 
     $APP_USERS = (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
 
@@ -520,7 +523,7 @@ function Get-OktaUserLogs {
               
       $SINCE = Get-Date (Get-Date).AddDays(-$DaysAgo) -Format o
       
-      $uri = "https://cruise.okta.com/api/v1/logs?limit=1000&since=$SINCE"
+      $uri = "$OKTA_BASE_URL/api/v1/logs?limit=1000&since=$SINCE"
    
       if($UserID){
 
@@ -563,11 +566,11 @@ function Get-OktaUserGroups{
 
     #construct URI with ID from user object
 
-    $uri =  "https://cruise.okta.com/api/v1/users/$user_email_to_id/groups"}
+    $uri =  "$OKTA_BASE_URL/api/v1/users/$user_email_to_id/groups"}
 
     if($UserID){
 
-    $uri = "https://cruise.okta.com/api/v1/users/$userID/groups"
+    $uri = "$OKTA_BASE_URL/api/v1/users/$userID/groups"
 
     
 
@@ -589,7 +592,7 @@ function Get-OktaAppCerts{
        
     #construct URI with ID from user object
 
-    $uri =  "https://cruise.okta.com/api/v1/apps/$ApplicationID/credentials/keys"
+    $uri =  "$OKTA_BASE_URL/api/v1/apps/$ApplicationID/credentials/keys"
 
    (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get).Content | ConvertFrom-Json
           
@@ -615,7 +618,7 @@ function Clone-OktaAppCerts{
     
     #construct URI with ID from user object
 
-    $uri =  "https://cruise.okta.com/api/v1/apps/$source_app_id/credentials/keys/$KID/clone?targetAid=$target_app_id"
+    $uri =  "$OKTA_BASE_URL/api/v1/apps/$source_app_id/credentials/keys/$KID/clone?targetAid=$target_app_id"
 
    (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method POST).content | ConvertFrom-Json
           
@@ -635,7 +638,7 @@ function Get-OktaAppMetaData {
        
     #construct URI with ID from user object
 
-    $uri =  "https://cruise.okta.com/api/v1/apps/$ApplicationID/sso/saml/metadata?kid=$KID"
+    $uri =  "$OKTA_BASE_URL/api/v1/apps/$ApplicationID/sso/saml/metadata?kid=$KID"
 
    (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
       
@@ -656,7 +659,7 @@ function Update-OktaAppCreds {
     $App_data = Get-OktaApp -AppName $AppName
     $app_data_id = $App_data.id
 
-    $uri =  "https://cruise.okta.com/api/v1/apps/$App_data_id"
+    $uri =  "$OKTA_BASE_URL/api/v1/apps/$App_data_id"
 
     $body = @{name = $App_data.name; label = $App_data.label; signOnMode = 'SAML_2_0'; credentials = @{signing = @{kid = $KID}}} | ConvertTo-Json
     
