@@ -4,12 +4,12 @@
 .LINK
     Okta Management API Documentation: https://developer.okta.com/docs/api/resources/apps
 .NOTES  
-    Author     : Swan Htet - sw@nhtet.net 
+    Author     : Swan Htet - sw@nhtet.net
     Requires   : PowerShell 
 #>
 
 #SET OKTA URL
-$OKTA_BASE_URL = "PUT BASE URL HERE"
+$OKTA_BASE_URL = "PUT_BASE_URL_HERE"
 
 #Prompt user to enter Okta API key if not already set
 
@@ -230,7 +230,7 @@ function Add-OktaGroup {
     $body = (ConvertTo-Json -InputObject @{ profile = @{ 'name' = $Name; 'description' = $description } })
 
     #Send HTTP POST to add user
-    Invoke-WebRequest -Uri $uri_add_group -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method POST -Body $body
+    (Invoke-WebRequest -Uri $uri_add_group -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method POST -Body $body).Content | ConvertFrom-Json
 }
 
 #Set or update qboxID profile attribute for Okta user. Currently need to expand to update all attributes. 
@@ -665,6 +665,34 @@ function Update-OktaAppCreds {
     
     (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json"} -Body $body -Method PUT).Content | ConvertFrom-Json
 
+}
 
+function Get-OktaGroupRules {
+
+    param(
+         [Parameter(Mandatory = $True)] [int]$Limit                   
+         )
+    #Check if API key is set
+    Set-OKTAApiKey
+       
+    #construct URI with limit
+    $uri =  "$OKTA_BASE_URL/api/v1/groups/rules?limit=$Limit"
+
+   (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get).Content | ConvertFrom-Json
+
+}
+
+function Get-OktaAppGroup {
+
+    param(
+         [Parameter(Mandatory = $True)] [string]$ApplicationID                
+         )
+    #Check if API key is set
+    Set-OKTAApiKey
+       
+    #construct URI with ID
+    $uri =  "$OKTA_BASE_URL/api/v1/apps/$ApplicationID/groups"
+
+   (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get).Content | ConvertFrom-Json
 
 }
