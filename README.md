@@ -12,15 +12,16 @@ A collection cmdlets related to Okta user and application management.
 
 After you've downloaded the module folder, copy it to your module directory.
 
-The default system module path for Linux/Mac is:
-* /usr/local/microsoft/powershell/6.0.2/modules
+The default system module path for **Linux/Mac** is:
+* /usr/local/microsoft/powershell/VERSION/modules
 
-The default user module path for Linux/Mac is:
+The default user module path for **Linux/Mac** is:
 * ~/.local/share/powershell/Modules
 
-The default system module path for Windows is: 
-* C:\Program Files\powershell\6.0.2\Modules
-The default user module paths for Windows is:
+The default system module path for **Windows** is: 
+* PowerShell Core: C:\Program Files\powershell\VERSION\Modules
+* PowerShell: C:\Windows\System32\WindowsPowerShell\v1.0\Modules
+The default user module paths for **Windows** is:
 * C:\Users\profile\Documents\WindowsPowerShell\Modules
 
 Then you can import the module by running: 
@@ -127,3 +128,7 @@ To retrieve a list of active ACME users with access to Confluence:
 (Get-OktaAppUser -ApplicationID 0oa2zan7odsadnPyW1t7).profile | ? {$_.email -like "*acme.com"}
 ```
 
+Get a specific Okta user and return their manager attribute:
+```
+(Get-OktaAppUser -UserEmail testany.testrson@acme.com).profile.manager
+```
