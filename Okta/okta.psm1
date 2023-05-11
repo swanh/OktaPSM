@@ -2,14 +2,14 @@
 .SYNOPSIS
     A PowerShell module utilizing the Okta Management API to perform administrative actions in Okta.  
 .LINK
-    Okta Management API Documentation: https://developer.okta.com/docs/api/resources/apps
+    Okta Management API Documentation: https://developer.okta.com/docs/api
 .NOTES  
     Author     : Swan Htet - sw@nhtet.net
     Requires   : PowerShell 
 #>
 
 #SET OKTA URL
-$OKTA_BASE_URL = "PUT_BASE_URL_HERE"
+$OKTA_BASE_URL = "YOUR_OKTA_URL"
 
 #Prompt user to enter Okta API key if not already set
 
@@ -29,9 +29,7 @@ function Set-OKTAApiKey {
         Write-Host "Okta API key has not been set."
         $Script:OKTA_API_KEY = Read-Host -Prompt "Enter your Okta API key: "
     }
-
     }
-
 }
 
 #Grab all active users from Okta
@@ -77,7 +75,7 @@ function Get-OktaUser {
       while ($next -ne '') {
             $new_url = $next
             $FILTER_USERS_IN = (Invoke-WebRequest -Uri $new_url -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
-            $next = (($ALL_USERS_IN.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
+            $next = (($FILTER_USERS_IN.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
             $FILTER_USERS_CLEAN += $FILTER_USERS_IN.Content | ConvertFrom-Json
 
         }
@@ -86,8 +84,10 @@ function Get-OktaUser {
 
     }
 
+
+
     #Otherwise, return user specified in UserEmail parameter
-    else {
+    if($UserEmail) {
         $uri_one = "$OKTA_BASE_URL/api/v1/users/" + $UserEmail
         $ONE_USER = (Invoke-WebRequest -Uri $uri_one -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
         $ONE_USER.Content | ConvertFrom-Json
@@ -96,13 +96,11 @@ function Get-OktaUser {
 
 #Grab all Okta groups
 #https://developer.okta.com/docs/api/resources/groups#list-groups
-
-#SWAN CLEAN THIS UP! ADD CONTROL FLOW TO CHECK IF ALL SWITCH SELECTED FOOL!
-
 function Get-OktaGroup {
     param(
         [Parameter(Mandatory = $False)] [switch]$All,
-        [Parameter(Mandatory = $False)] [string]$GroupName
+        [Parameter(Mandatory = $False)] [string]$GroupName,
+        [Parameter(Mandatory = $False)] [string]$GroupID
     )
     #Check if API key is set
     Set-OKTAApiKey
@@ -130,7 +128,13 @@ function Get-OktaGroup {
     $ALL_GROUPS_CLEAN
     
     }
-    
+    elseif($GroupID){
+
+        $uri_one = "$OKTA_BASE_URL/api/v1/groups/$GroupID"
+        $ONE_GROUP = (Invoke-WebRequest -Uri $uri_one -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+        ($ONE_GROUP.Content | ConvertFrom-Json)
+    }
+
     #grab group by name provided
     else {
         $groupName_clean = $groupName -replace " ","%20"
@@ -146,14 +150,35 @@ function Get-OktaGroup {
 
 function Get-OktaGroupMembers {
     param(
-        [Parameter(Mandatory = $True)] [string]$groupName
+        [Parameter(Mandatory = $False)] [string]$groupName,
+        [Parameter(Mandatory = $False)] [string]$GroupID
+
     )
 
     #Check if API key is set
     Set-OKTAApiKey
 
+    if($groupName){
     #Query Okta to grab the group ID, then use GroupID to construct new URI. GET to print out all users in the group
-    $groupID = (Get-OktaGroup -groupName $groupName).id
+    $group_ID = (Get-OktaGroup -groupName $groupName).id
+    $uri_grp_members = "$OKTA_BASE_URL/api/v1/groups/" + $group_ID + "/users"
+    $GROUP_MEMBERS = (Invoke-WebRequest -Uri $uri_grp_members -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+    $next = (($GROUP_MEMBERS.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
+    #Clean the content of the first API call, add users to object 
+    $GROUP_MEMBERS_CLEAN = $GROUP_MEMBERS.Content | ConvertFrom-Json
+    #Loop through content until all users found
+    while ($next -ne '') {
+        $new_url = $next
+        $GROUP_MEMBERS_IN = (Invoke-WebRequest -Uri $new_url -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+        $next = (($GROUP_MEMBERS_IN.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
+        $GROUP_MEMBERS_CLEAN += $GROUP_MEMBERS_IN.Content | ConvertFrom-Json
+
+    }
+
+    $GROUP_MEMBERS_CLEAN  }
+
+    #Run with provided groupID
+    else{
     $uri_grp_members = "$OKTA_BASE_URL/api/v1/groups/" + $groupID + "/users"
     $GROUP_MEMBERS = (Invoke-WebRequest -Uri $uri_grp_members -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
     $next = (($GROUP_MEMBERS.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
@@ -169,6 +194,9 @@ function Get-OktaGroupMembers {
     }
 
     $GROUP_MEMBERS_CLEAN
+
+    }
+
 
 }
 
@@ -233,7 +261,7 @@ function Add-OktaGroup {
     (Invoke-WebRequest -Uri $uri_add_group -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method POST -Body $body).Content | ConvertFrom-Json
 }
 
-#Set or update qboxID profile attribute for Okta user. Currently need to expand to update all attributes. 
+#Set or update profile attribute for Okta user. Currently need to expand to update all attributes. 
 #https://developer.okta.com/docs/api/resources/users#update-user
 
 function Set-OktaUser {
@@ -250,7 +278,12 @@ function Set-OktaUser {
    [Parameter(Mandatory = $False)][string]$Type,
    [Parameter(Mandatory = $False)][string]$StartDate,
    [Parameter(Mandatory = $False)][string]$OffboardDateTime,
-   [Parameter(Mandatory = $False)][array]$GroupMembership
+   [Parameter(Mandatory = $False)][string]$Organization,
+   [Parameter(Mandatory = $False)][array]$GroupMembership,
+   [Parameter(Mandatory = $False)][array]$ProxyAddresses,
+   [Parameter(Mandatory = $False)][string]$City,
+   [Parameter(Mandatory = $False)][string]$State,
+   [Parameter(Mandatory = $False)][string]$Country
    )
 
     #Check if API key is set
@@ -272,7 +305,12 @@ function Set-OktaUser {
     Add-Member -InputObject $body_prep -MemberType NoteProperty -Name startDate -Value $StartDate
     Add-Member -InputObject $body_prep -MemberType NoteProperty -Name offboardDateTime -Value $OffboardDateTime
     Add-Member -InputObject $body_prep -MemberType NoteProperty -Name group_membership -Value $GroupMembership
-    
+    Add-Member -InputObject $body_prep -MemberType NoteProperty -Name organization -Value $Organization
+    Add-Member -InputObject $body_prep -MemberType NoteProperty -Name ProxyAdressess -Value $proxyAddresses
+    Add-Member -InputObject $body_prep -MemberType NoteProperty -Name city -Value $City
+    Add-Member -InputObject $body_prep -MemberType NoteProperty -Name state -Value $State
+    Add-Member -InputObject $body_prep -MemberType NoteProperty -Name country -Value $Country
+
     $body_old = $body_prep | ForEach-Object {
    # Get array of names of object properties that can be cast to boolean TRUE
    
@@ -332,20 +370,21 @@ function Add-OktaUser {
     param(
         [Parameter(Mandatory = $True)] [string]$FirstName,
         [Parameter(Mandatory = $True)] [string]$LastName,
-        [Parameter(Mandatory = $True)] [string]$Title,
-        [Parameter(Mandatory = $True)] [string]$Department,
+        [Parameter(Mandatory = $False)] [string]$Title,
+        [Parameter(Mandatory = $False)] [string]$Department,
         [Parameter(Mandatory = $True)] [string]$Email,
         [Parameter(Mandatory = $False)][string]$PreferredName,
-        [Parameter(Mandatory = $True)] [string]$SecondaryEmail,
-        [Parameter(Mandatory = $True)] [string]$Manager,
+        [Parameter(Mandatory = $False)] [string]$SecondaryEmail,
+        [Parameter(Mandatory = $False)] [string]$Manager,
         [Parameter(Mandatory = $False)][string]$startDate,
-        [Parameter(Mandatory = $True)] [array]$GroupIDs
+        [Parameter(Mandatory = $False)][string]$Organization,
+        [Parameter(Mandatory = $False)][string]$userType,
+        [Parameter(Mandatory = $False)] [array]$GroupIDs
 
     )
 
     #Check if API key is set
     Set-OKTAApiKey
-
 
     #Construct profile object to POST
    
@@ -360,6 +399,8 @@ function Add-OktaUser {
     Add-Member -InputObject $body_prep -MemberType NoteProperty -Name secondEmail -Value $secondaryEmail
     Add-Member -InputObject $body_prep -MemberType NoteProperty -Name login -Value $Email
     Add-Member -InputObject $body_prep -MemberType NoteProperty -Name startDate -Value $startDate
+    Add-Member -InputObject $body_prep -MemberType NoteProperty -Name organization -Value $Organization
+    Add-Member -InputObject $body_prep -MemberType NoteProperty -Name userType -Value $userType
     
     $body_old = $body_prep | ForEach-Object {
    # Get array of names of object properties that can be cast to boolean TRUE
@@ -376,7 +417,7 @@ function Add-OktaUser {
     Write-Verbose $body_new
     
     #Content URL and body to POST
-    $uri_add_user = "$OKTA_BASE_URL/api/v1/users?activate=false"
+    $uri_add_user = "$OKTA_BASE_URL/api/v1/users?activate=true"
 
     #Send HTTP POST to add user
     Invoke-WebRequest -Uri $uri_add_user -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method POST -Body $body_new
@@ -388,7 +429,8 @@ function Get-OktaApp {
 
     param(
         [Parameter(Mandatory = $False)] [switch]$All,
-        [Parameter(Mandatory = $False)] [string]$AppName
+        [Parameter(Mandatory = $False)] [string]$AppName,
+        [Parameter(Mandatory = $False)] [string]$ID
     )
     #Check if API key is set
     Set-OKTAApiKey
@@ -411,11 +453,54 @@ function Get-OktaApp {
     }
     #Return results to user
     if ($All){
+        #First API call
+    $uri_all = "$OKTA_BASE_URL/api/v1/apps"
+    $ALL_APPS = (Invoke-WebRequest -Uri $uri_all -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+    $next = (($ALL_APPS.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
+
+    #Clean the content of the first API call, add users to object 
+    $ALL_APPS_CLEAN = $ALL_APPS.Content | ConvertFrom-Json
+    
+    #Loop through content until all users found
+    while ($next -ne '') {
+        $new_url = $next
+        $ALL_APPS_IN = (Invoke-WebRequest -Uri $new_url -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+        $next = (($ALL_APPS_IN.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
+        $ALL_APPS_CLEAN += $ALL_APPS_IN.Content | ConvertFrom-Json}
+
+
         $ALL_APPS_CLEAN}
+
+    elseif($ID){
+        $uri_all = "$OKTA_BASE_URL/api/v1/apps/$ID"
+        $ALL_APPS = (Invoke-WebRequest -Uri $uri_all -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+
+        $ALL_APPS_CLEAN = $ALL_APPS.Content | ConvertFrom-Json
+
+        $ALL_APPS_CLEAN
+
+        }
+
     else {
-        $ALL_APPS_CLEAN | Where-Object {$_.label -eq $AppName}}
 
+        #First API call
+    $uri_all = "$OKTA_BASE_URL/api/v1/apps"
+    $ALL_APPS = (Invoke-WebRequest -Uri $uri_all -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+    $next = (($ALL_APPS.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
 
+    #Clean the content of the first API call, add users to object 
+    $ALL_APPS_CLEAN = $ALL_APPS.Content | ConvertFrom-Json
+    
+    #Loop through content until all users found
+    while ($next -ne '') {
+        $new_url = $next
+        $ALL_APPS_IN = (Invoke-WebRequest -Uri $new_url -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+        $next = (($ALL_APPS_IN.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
+        $ALL_APPS_CLEAN += $ALL_APPS_IN.Content | ConvertFrom-Json}
+
+        
+        $ALL_APPS_CLEAN | Where-Object {$_.label -eq $AppName}
+        }
 }
 
 function Deactivate-OktaUser {
@@ -426,7 +511,21 @@ function Deactivate-OktaUser {
     )
 
     $user = Get-OktaUser -UserEmail $UserEmail
-    Invoke-WebRequest -Uri $user._links.deactivate.href  -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json"} -Method POST
+    $url = $OKTA_BASE_URL + "/api/v1/users/" + $user.id + "/lifecycle/deactivate"
+    Write-Host $url
+    Invoke-WebRequest -Uri $url -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json"} -Method POST
+    
+}
+
+function Suspend-OktaUser {
+
+     param(
+        [Parameter(Mandatory = $True)] [string]$UserEmail
+               #Add more parameters here!
+    )
+
+    $user = Get-OktaUser -UserEmail $UserEmail
+    Invoke-WebRequest -Uri $user._links.suspend.href  -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json"} -Method POST
     
 }
 
@@ -436,11 +535,9 @@ function Activate-OktaUser {
         [Parameter(Mandatory = $True)] [string]$UserEmail
                #Add more parameters here!
     )
-
+    
     $user = Get-OktaUser -UserEmail $UserEmail
     Invoke-WebRequest -Uri $user._links.activate.href  -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json"} -Method POST
-    
-
 }
 
 
@@ -453,10 +550,19 @@ function Reactivate-OktaUser {
 
     $user = Get-OktaUser -UserEmail $UserEmail
     Invoke-WebRequest -Uri $user._links.reactivate.href  -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json"} -Method POST
-    
-
 }
 
+function Expire-OktaUserPassword {
+
+     param(
+        [Parameter(Mandatory = $True)] [string]$UserEmail
+              
+    )
+
+    $user = Get-OktaUser -UserEmail $UserEmail
+    $url = "$OKTA_BASE_URL/api/v1/users/$($user.id)/lifecycle/expire_password"
+    Invoke-WebRequest -Uri $url -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json"} -Method POST
+}
 
 function Get-OktaGroupApplications {
 
@@ -473,7 +579,6 @@ function Get-OktaGroupApplications {
     $GROUP_APPS = (Invoke-WebRequest -Uri $uri_group_apps -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
        $GROUP_APPS_CLEAN = $GROUP_APPS.Content | ConvertFrom-Json
     $GROUP_APPS_CLEAN | Where-Object {$_.status -ne 'INACTIVE'}
-
     }     
 
     elseif($IncludeInactive){
@@ -481,8 +586,6 @@ function Get-OktaGroupApplications {
     $uri_group_apps = "$OKTA_BASE_URL/api/v1/groups/" + $groupID.id + "/apps"
     $GROUP_APPS = (Invoke-WebRequest -Uri $uri_group_apps -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
     $GROUP_APPS_CLEAN = $GROUP_APPS.Content | ConvertFrom-Json
-
-
     }
 }
 
@@ -495,11 +598,8 @@ function Get-OktaAppUser {
     )
     
     $uri = "$OKTA_BASE_URL/api/v1/apps/" +$ApplicationID + "/users"
-
     $APP_USERS = (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
-
     $next = (($APP_USERS.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
-
     $APP_USERS_CLEAN = $APP_USERS.Content | ConvertFrom-Json
 
     while($next -ne ''){
@@ -509,7 +609,6 @@ function Get-OktaAppUser {
         $next = (($APP_USERS_IN.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
         $APP_USERS_CLEAN += $APP_USERS_IN.Content | ConvertFrom-Json      
     }
-
 
    $APP_USERS_CLEAN
 }
@@ -582,6 +681,37 @@ function Get-OktaUserGroups{
 
 }
 
+
+function Get-OktaUserApps{
+
+    param(
+         [Parameter(Mandatory = $False)] [string]$UserEmail,
+         [Parameter(Mandatory = $False)] [string]$UserID               
+         )
+    #Check if API key is set
+    Set-OKTAApiKey
+    
+    #Grab user ID from email
+    if($UserEmail){
+    $user_email_to_id = (Get-OktaUser -UserEmail $UserEmail).id
+
+    #construct URI with ID from user object
+
+    $uri =  "$OKTA_BASE_URL/api/v1/apps?filter=user.id eq " + '"' + $user_email_to_id + '"'}
+
+    if($UserID){
+
+    $uri = "$OKTA_BASE_URL/api/v1/apps?filter=user.id eq " + '"' + $UserId + '"'
+
+    
+
+    }
+
+    (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get).content | ConvertFrom-Json
+          
+
+}
+
 function Get-OktaAppCerts{
 
     param(
@@ -595,11 +725,8 @@ function Get-OktaAppCerts{
     $uri =  "$OKTA_BASE_URL/api/v1/apps/$ApplicationID/credentials/keys"
 
    (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get).Content | ConvertFrom-Json
-          
-
-
+         
 }
-
 
 function Clone-OktaAppCerts{
 
@@ -612,18 +739,14 @@ function Clone-OktaAppCerts{
     Set-OKTAApiKey
     
     #Get application IDs
-
     $source_app_id = (Get-OktaApp -AppName $SourceAppName).id
     $target_app_id = (Get-OktaApp -AppName $TargetAppName).id
     
     #construct URI with ID from user object
 
     $uri =  "$OKTA_BASE_URL/api/v1/apps/$source_app_id/credentials/keys/$KID/clone?targetAid=$target_app_id"
-
    (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method POST).content | ConvertFrom-Json
           
-
-
 }
 
 function Get-OktaAppMetaData {
@@ -635,15 +758,12 @@ function Get-OktaAppMetaData {
          )
     #Check if API key is set
     Set-OKTAApiKey
-       
+    
     #construct URI with ID from user object
-
     $uri =  "$OKTA_BASE_URL/api/v1/apps/$ApplicationID/sso/saml/metadata?kid=$KID"
 
-   (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+    (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
       
-          
-
 }
 
 function Update-OktaAppCreds {
@@ -670,15 +790,29 @@ function Update-OktaAppCreds {
 function Get-OktaGroupRules {
 
     param(
-         [Parameter(Mandatory = $True)] [int]$Limit                   
+         [Parameter(Mandatory = $False)] [switch]$All                  
          )
     #Check if API key is set
     Set-OKTAApiKey
        
-    #construct URI with limit
-    $uri =  "$OKTA_BASE_URL/api/v1/groups/rules?limit=$Limit"
+    #First API call
+    $uri_all = "$OKTA_BASE_URL/api/v1/groups/rules"
+    $ALL_RULES = (Invoke-WebRequest -Uri $uri_all -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+    $next = (($ALL_RULES.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
 
-   (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get).Content | ConvertFrom-Json
+    #Clean the content of the first API call, add users to object 
+    $ALL_RULES_CLEAN = $ALL_RULES.Content | ConvertFrom-Json
+    
+    #Loop through content until all users found
+    while ($next -ne '') {
+        $new_url = $next
+        $ALL_RULES_IN = (Invoke-WebRequest -Uri $new_url -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+        $next = (($ALL_RULES_IN.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
+        $ALL_RULES_CLEAN += $ALL_RULES_IN.Content | ConvertFrom-Json
+
+    }
+     #Return results to user
+    $ALL_RULES_CLEAN
 
 }
 
@@ -693,6 +827,182 @@ function Get-OktaAppGroup {
     #construct URI with ID
     $uri =  "$OKTA_BASE_URL/api/v1/apps/$ApplicationID/groups"
 
-   (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get).Content | ConvertFrom-Json
+    (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get).Content | ConvertFrom-Json
 
+}
+
+function Search-OktaGroups {
+
+    param(
+         [Parameter(Mandatory = $False)][string]$GroupID,
+         [Parameter(Mandatory = $False)][string]$GroupName                
+         )
+
+    #Check if API key is set
+    Set-OKTAApiKey
+       
+    #construct URI with ID
+    $uri =  "$OKTA_BASE_URL/api/v1/apps/$ApplicationID/groups"
+
+    (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get).Content | ConvertFrom-Json
+
+}
+
+function Remove-OktaAppUser {
+
+    param(
+         [Parameter(Mandatory = $True)][string]$ApplicationId,
+         [Parameter(Mandatory = $True)][string]$UserEmail
+                           )
+    #Check if API key is set
+    Set-OKTAApiKey
+
+    #Convert email to userId
+    $userId = (Get-OktaUser -UserEmail $UserEmail).id
+
+    #Construct URL to unassign app
+    $uri =  "$OKTA_BASE_URL/api/v1/apps/$ApplicationID/users/$userId"
+
+    (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method DELETE).Content | ConvertFrom-Json
+}
+
+function generateTestAccounts {
+
+    param(
+         [Parameter(Mandatory = $True)][int]$Count,
+         [Parameter(Mandatory = $True)][string]$EmailDomain
+                           )
+        #Check if API key is set
+    Set-OKTAApiKey
+
+    $testAccountData = @()
+
+    for($i=1; $i -le $Count; $i++){
+
+        $FirstName = "Test" + $(Get-Random -Maximum 500) + $i
+        $LastName = "User" + $(Get-Random -Maximum 500) + $i
+        $Email = $FirstName + "." + $LastName + $EmailDomain
+
+        $data_obj = New-Object PSObject
+        Add-Member -InputObject $data_obj -MemberType NoteProperty -Name FirstName -Value $FirstName
+        Add-Member -InputObject $data_obj -MemberType NoteProperty -Name LastName -Value $LastName
+        Add-Member -InputObject $data_obj -MemberType NoteProperty -Name Email -Value $Email
+
+        $oktaAccount = (Add-OktaUser -FirstName $FirstName -LastName $LastName -Email $Email).Content | ConvertFrom-Json -Depth 100
+
+        $testAccountData += $oktaAccount
+
+    }
+
+    $testAccountData
+
+}
+
+function Get-OktaPolicy {
+    
+    param(
+         [Parameter(Mandatory = $True)][switch]$All,
+         [Parameter(Mandatory = $True)][ValidateSet("OKTA_SIGN_ON", "PASSWORD", "MFA_ENROLL")][string]$Type
+         )
+
+        #Check if API key is set
+    Set-OKTAApiKey
+              
+      if($All){
+      
+      $uri = "$OKTA_BASE_URL/api/v1/policies?type=$Type"
+      
+      $POLICY_DATA = (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+      $next = (($POLICY_DATA.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
+      $POLICY_DATA_CLEAN = $POLICY_DATA.Content | ConvertFrom-Json 
+
+      while($next -ne ''){
+
+          $new_url = $next
+          $POLICY_DATA_IN = (Invoke-WebRequest -Uri $new_url -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+          $next = (($POLICY_DATA_IN.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
+          $POLICY_DATA_CLEAN += $POLICY_DATA_IN.Content | ConvertFrom-Json             
+
+      }}
+      
+      $POLICY_DATA_CLEAN
+
+}
+
+function Delete-OktaGroup {
+
+     param(
+        [Parameter(Mandatory = $True)][string]$GroupId
+               #Add more parameters here!
+    )
+         #Check if API key is sethttps://account.ghost.org/
+    Set-OKTAApiKey
+    $url = $OKTA_BASE_URL + "/api/v1/groups/" + $GroupId
+    Write-Host $url
+    Invoke-WebRequest -Uri $url -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json"} -Method DELETE
+
+}
+
+function Update-OktaUserAppAssignmentType {
+
+     param(
+        [Parameter(Mandatory = $True)][string]$ApplicationId,
+        [Parameter(Mandatory = $True)][string]$UserId,
+        [Parameter(Mandatory = $True)][string]$AssignmentType
+        
+               #Add more parameters here!
+    )
+         #Check if API key is set
+    Set-OKTAApiKey
+    $url = $OKTA_BASE_URL + "/api/v1/apps/" + $ApplicationId + "/users/" + $UserId
+    
+    $body = @{"scope" = $AssignmentType} | ConvertTo-Json   
+
+    Invoke-WebRequest -Uri $url -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json"} -Method POST -Body $body
+    
+}
+
+function Get-OktaProfileMapping {
+
+     param(
+        
+        [Parameter(Mandatory = $False)][string]$MappingsId,
+        [Parameter(Mandatory = $False)][switch]$All
+    )
+    
+    #Check if API key is set
+    Set-OKTAApiKey
+
+    if($MappingsId){
+        $uri = $OKTA_BASE_URL + "/api/v1/mappings/$MappingsId"
+
+        $mappings_data_clean = (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json"} -Method GET).Content | ConvertFrom-Json
+    }
+
+    if($All){
+
+      $uri = $OKTA_BASE_URL + "/api/v1/mappings?limit=200"
+
+      $mappings_data = (Invoke-WebRequest -Uri $uri -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+      $next = (($mappings_data.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
+      $mappings_data_clean = $mappings_data.Content | ConvertFrom-Json 
+
+      while($next -ne ''){
+
+      $new_url = $next
+      Write-Host $new_url
+      
+      $mappings_data_in = (Invoke-WebRequest -Uri $new_url -Headers @{ "Authorization" = "SSWS $OKTA_API_KEY"; "Content-Type" = "application/json"; "Accept" = "application/json" } -Method Get)
+
+      $next = (($mappings_data_in.Headers.Link) -split ',' -split ';')[2] -replace '<','' -replace '>',''
+
+      if($next -eq $new_url){$next = ''}
+      Write-Host $next
+
+      $mappings_data_clean += $mappings_data_in.Content | ConvertFrom-Json             
+
+    }}
+
+    return $mappings_data_clean
+    
 }
