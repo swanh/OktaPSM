@@ -21,6 +21,7 @@ The default user module path for **Linux/Mac** is:
 The default system module path for **Windows** is: 
 * PowerShell Core: C:\Program Files\powershell\VERSION\Modules
 * PowerShell: C:\Windows\System32\WindowsPowerShell\v1.0\Modules
+
 The default user module paths for **Windows** is:
 * C:\Users\profile\Documents\WindowsPowerShell\Modules
 
